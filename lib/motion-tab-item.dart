@@ -12,6 +12,7 @@ class MotionTabItem extends StatefulWidget {
   final String? title;
   final bool selected;
   final IconData? iconData;
+  final List<String> images;
   final TextStyle textStyle;
   final Function callbackFunction;
   final Color tabIconColor;
@@ -22,6 +23,7 @@ class MotionTabItem extends StatefulWidget {
     required this.title,
     required this.selected,
     required this.iconData,
+    required this.images,
     required this.textStyle,
     required this.tabIconColor,
     required this.callbackFunction,
@@ -32,7 +34,6 @@ class MotionTabItem extends StatefulWidget {
   @override
   _MotionTabItemState createState() => _MotionTabItemState();
 }
-
 class _MotionTabItemState extends State<MotionTabItem> {
   double iconYAlign = ICON_ON;
   double textYAlign = TEXT_OFF;
@@ -71,20 +72,19 @@ class _MotionTabItemState extends State<MotionTabItem> {
             child: AnimatedAlign(
               duration: Duration(milliseconds: ANIM_DURATION),
               alignment: Alignment(0, textYAlign),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: widget.selected
+                 child: widget.selected
                     ? Text(
                         widget.title!,
                         style: widget.textStyle,
-                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        textScaler: TextScaler.linear(.9),
+                        softWrap: true,
                         maxLines: 1,
                         textAlign: TextAlign.center,
                       )
                     : Text(''),
               ),
-            ),
-          ),
+           ),
           InkWell(
             onTap: () => widget.callbackFunction(),
             child: Container(
@@ -112,6 +112,15 @@ class _MotionTabItemState extends State<MotionTabItem> {
                         ),
                         onPressed: () => widget.callbackFunction(),
                       ),
+                      ...widget.images.map((imagePath) {
+                        return Image(
+                          height: 25,
+                            image: AssetImage(imagePath),fit: BoxFit.cover,
+                          color: widget.selected ? Color(0xFF861088) : Color(0xFF697585),
+                          width: 25,
+                        );
+                      }).toList(),
+
                       widget.badge != null
                           ? Positioned(
                               top: 0,

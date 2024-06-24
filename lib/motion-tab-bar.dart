@@ -1,5 +1,3 @@
-library motiontabbar;
-
 import 'package:flutter/material.dart';
 import 'package:motion_tab_bar_v2/motion-tab-controller.dart';
 import 'motion-tab-item.dart';
@@ -10,11 +8,12 @@ class MotionTabBar extends StatefulWidget {
   final Color? tabIconColor, tabIconSelectedColor, tabSelectedColor, tabBarColor;
   final double? tabIconSize, tabIconSelectedSize, tabBarHeight, tabSize;
   final TextStyle? textStyle;
-  final Function? onTabItemSelected;
+  final Function(int)? onTabItemSelected;
   final String initialSelectedTab;
 
   final List<String?> labels;
   final List<IconData>? icons;
+  final List<String> images; // String paths for images
   final bool useSafeArea;
   final MotionTabBarController? controller;
 
@@ -22,25 +21,28 @@ class MotionTabBar extends StatefulWidget {
   final List<Widget?>? badges;
 
   MotionTabBar({
+    Key? key,
     this.textStyle,
     this.tabIconColor = Colors.black,
     this.tabIconSize = 24,
     this.tabIconSelectedColor = Colors.white,
-    this.tabIconSelectedSize = 24,
+    this.tabIconSelectedSize = 34,
     this.tabSelectedColor = Colors.black,
     this.tabBarColor = Colors.white,
-    this.tabBarHeight = 65,
+    this.tabBarHeight = 55,
     this.tabSize = 60,
-    this.onTabItemSelected,
+    required this.onTabItemSelected,
     required this.initialSelectedTab,
     required this.labels,
     this.icons,
+    required this.images, // New parameter for images
     this.useSafeArea = true,
     this.badges,
     this.controller,
   })  : assert(labels.contains(initialSelectedTab)),
-        assert(icons != null && icons.length == labels.length),
-        assert((badges != null && badges.length > 0) ? badges.length == labels.length : true);
+        assert(images != null ), // Assertion for images
+        assert((badges != null && badges.length > 0) ? badges.length == labels.length : true),
+        super(key: key);
 
   @override
   _MotionTabBarState createState() => _MotionTabBarState();
@@ -56,9 +58,9 @@ class _MotionTabBarState extends State<MotionTabBar> with TickerProviderStateMix
   late Animation<double> _fadeFabInAnimation;
 
   late List<String?> labels;
-  late Map<String?, IconData> icons;
+  late Map<String?, dynamic> items; // Changed type to dynamic to hold either IconData or ImageProvider
 
-  get tabAmount => icons.keys.length;
+  get tabAmount => items.keys.length;
   get index => labels.indexOf(selectedTab);
   get position {
     double pace = 2 / (labels.length - 1);
@@ -66,7 +68,7 @@ class _MotionTabBarState extends State<MotionTabBar> with TickerProviderStateMix
   }
 
   double fabIconAlpha = 1;
-  IconData? activeIcon;
+  dynamic activeItem;
   String? selectedTab;
 
   List<Widget>? badges;
@@ -76,10 +78,10 @@ class _MotionTabBarState extends State<MotionTabBar> with TickerProviderStateMix
   void initState() {
     super.initState();
 
-    if(widget.controller != null) {
-      widget.controller!.onTabChange= (index) {
+    if (widget.controller != null) {
+      widget.controller!.onTabChange = (index) {
         setState(() {
-          activeIcon = widget.icons![index];
+          activeItem = widget.icons != null ? widget.icons![index] : widget.images[index];
           selectedTab = widget.labels[index];
         });
         _initAnimationAndStart(_positionAnimation.value, position);
@@ -87,14 +89,14 @@ class _MotionTabBarState extends State<MotionTabBar> with TickerProviderStateMix
     }
 
     labels = widget.labels;
-    icons = Map.fromIterable(
+    items = Map.fromIterable(
       labels,
       key: (label) => label,
-      value: (label) => widget.icons![labels.indexOf(label)],
+      value: (label) => widget.icons != null ? widget.icons![labels.indexOf(label)] : widget.images[labels.indexOf(label)],
     );
 
     selectedTab = widget.initialSelectedTab;
-    activeIcon = icons[selectedTab];
+    activeItem = items[selectedTab];
 
     // init badge text
     int selectedIndex = labels.indexWhere((element) => element == widget.initialSelectedTab);
@@ -127,7 +129,7 @@ class _MotionTabBarState extends State<MotionTabBar> with TickerProviderStateMix
       ..addStatusListener((AnimationStatus status) {
         if (status == AnimationStatus.completed) {
           setState(() {
-            activeIcon = icons[selectedTab];
+            activeItem = items[selectedTab];
 
             int selectedIndex = labels.indexWhere((element) => element == selectedTab);
             activeBadge = (widget.badges != null && widget.badges!.length > 0) ? widget.badges![selectedIndex] : null;
@@ -229,17 +231,24 @@ class _MotionTabBarState extends State<MotionTabBar> with TickerProviderStateMix
                                 child: Stack(
                                   alignment: Alignment.center,
                                   children: [
-                                    Icon(
-                                      activeIcon,
-                                      color: widget.tabIconSelectedColor,
-                                      size: widget.tabIconSelectedSize,
-                                    ),
+                                    if (activeItem is IconData)
+                                      Icon(
+                                        activeItem,
+                                        color: widget.tabIconSelectedColor,
+                                        size: widget.tabIconSelectedSize,
+                                      )
+                                    else if (activeItem is String) // Handling String (image path) case
+                                      Image.asset(
+                                        activeItem,
+                                        width: widget.tabIconSelectedSize,
+                                        height: widget.tabIconSelectedSize,
+                                      ),
                                     activeBadge != null
                                         ? Positioned(
-                                            top: 0,
-                                            right: 0,
-                                            child: activeBadge!,
-                                          )
+                                      top: 0,
+                                      right: 0,
+                                      child: activeBadge!,
+                                    )
                                         : SizedBox(),
                                   ],
                                 ),
@@ -261,22 +270,23 @@ class _MotionTabBarState extends State<MotionTabBar> with TickerProviderStateMix
 
   List<Widget> generateTabItems() {
     return labels.map((tabLabel) {
-      IconData? icon = icons[tabLabel];
+      dynamic item = items[tabLabel];
 
       int selectedIndex = labels.indexWhere((element) => element == tabLabel);
       Widget? badge = (widget.badges != null && widget.badges!.length > 0) ? widget.badges![selectedIndex] : null;
 
       return MotionTabItem(
         selected: selectedTab == tabLabel,
-        iconData: icon,
-        title: tabLabel,
+        iconData: item is IconData ? item : null,
+        images: item is String ? [item] : [], // Convert String to AssetImage
+        title: tabLabel!,
         textStyle: widget.textStyle ?? TextStyle(color: Colors.black),
-        tabIconColor: widget.tabIconColor ?? Colors.black,
-        tabIconSize: widget.tabIconSize,
+        tabIconColor: widget.tabIconColor!,
+        tabIconSize: widget.tabIconSize!,
         badge: badge,
         callbackFunction: () {
           setState(() {
-            activeIcon = icon;
+            activeItem = item;
             selectedTab = tabLabel;
             widget.onTabItemSelected!(index);
           });
@@ -295,6 +305,13 @@ class _MotionTabBarState extends State<MotionTabBar> with TickerProviderStateMix
     _animationController.forward();
     _fadeOutController.forward();
   }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _fadeOutController.dispose();
+    super.dispose();
+  }
 }
 
 class HalfClipper extends CustomClipper<Rect> {
@@ -311,19 +328,6 @@ class HalfPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // final Rect beforeRect = Rect.fromLTWH(0, (size.height / 2) - 10, 10, 10);
-    // final Rect largeRect = Rect.fromLTWH(10, 0, size.width - 20, 70);
-    // final Rect afterRect = Rect.fromLTWH(size.width - 10, (size.height / 2) - 10, 10, 10);
-
-    // final path = Path();
-
-    // path.arcTo(beforeRect, vector.radians(0), vector.radians(90), false);
-    // path.lineTo(20, size.height / 2);
-    // path.arcTo(largeRect, vector.radians(0), -vector.radians(180), false);
-    // path.moveTo(size.width - 10, size.height / 2);
-    // path.lineTo(size.width - 10, (size.height / 2) - 10);
-    // path.arcTo(afterRect, vector.radians(180), vector.radians(-90), false);
-
     final double curveSize = 10;
     final double xStartingPos = 0;
     final double yStartingPos = (size.height / 2);
